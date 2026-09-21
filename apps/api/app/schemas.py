@@ -21,6 +21,17 @@ class CreateOrderRequest(BaseModel):
     items: list[OrderItemInput] = Field(min_length=1)
 
 
+class UpdateOrderStatusRequest(BaseModel):
+    status: Literal[
+        "confirmed",
+        "preparing",
+        "ready",
+        "out_for_delivery",
+        "completed",
+        "cancelled",
+    ]
+
+
 class OrderResponse(BaseModel):
     order_id: str
     customer_id: str
