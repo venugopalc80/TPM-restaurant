@@ -131,7 +131,7 @@ export default function Dashboard() {
                 <span className="order-number">#${order.order_number}</span>
                 <span className="source-badge">{order.source}</span>
               </div>
-              <span className="status-badge">{order.status.replaceAll("_", " ")}</span>
+              <span className="status-badge">{order.status.replace(/_/g, " ")}</span>
             </header>
 
             <div className="order-customer">
