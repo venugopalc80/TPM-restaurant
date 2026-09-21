@@ -128,7 +128,7 @@ export default function Dashboard() {
           <article className={`order-card status-${order.status}`} key={order.id}>
             <header>
               <div>
-                <span className="order-number">#${order.order_number}</span>
+                <span className="order-number">#{order.order_number}</span>
                 <span className="source-badge">{order.source}</span>
               </div>
               <span className="status-badge">{order.status.replace(/_/g, " ")}</span>
