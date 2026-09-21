@@ -1,14 +1,25 @@
 from fastapi import FastAPI, HTTPException
 
 from .db import supabase
-from .schemas import CreateOrderRequest, OrderResponse
+from .schemas import CreateOrderRequest, OrderResponse, UpdateOrderStatusRequest
 
 
 app = FastAPI(
     title="TPM Restaurant API",
-    version="0.1.0",
+    version="0.2.0",
     description="Shared ordering API for the TPM restaurant website, dashboard and AI phone agent.",
 )
+
+
+ALLOWED_TRANSITIONS = {
+    "pending": {"confirmed", "cancelled"},
+    "confirmed": {"preparing", "cancelled"},
+    "preparing": {"ready"},
+    "ready": {"out_for_delivery", "completed"},
+    "out_for_delivery": {"completed"},
+    "completed": set(),
+    "cancelled": set(),
+}
 
 
 @app.get("/health")
@@ -23,7 +34,7 @@ def get_restaurant(restaurant_id: str):
         .select("id,name,phone,email,currency,active")
         .eq("id", restaurant_id)
         .eq("active", True)
-        .single()
+        .maybe_single()
         .execute()
     )
     if not result.data:
@@ -109,3 +120,52 @@ def list_orders(restaurant_id: str, limit: int = 50):
         .execute()
     )
     return {"orders": result.data or []}
+
+
+@app.get("/orders/{order_id}")
+def get_order(order_id: str):
+    result = (
+        supabase.table("orders")
+        .select(
+            "id,restaurant_id,order_number,source,order_type,status,customer_name,"
+            "customer_phone,delivery_address,notes,subtotal,delivery_fee,total,"
+            "created_at,updated_at,order_items(id,item_name,unit_price,quantity,line_total,notes)"
+        )
+        .eq("id", order_id)
+        .maybe_single()
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return result.data
+
+
+@app.patch("/orders/{order_id}/status")
+def update_order_status(order_id: str, payload: UpdateOrderStatusRequest):
+    current = (
+        supabase.table("orders")
+        .select("id,status")
+        .eq("id", order_id)
+        .maybe_single()
+        .execute()
+    )
+    if not current.data:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    old_status = current.data["status"]
+    if payload.status not in ALLOWED_TRANSITIONS.get(old_status, set()):
+        raise HTTPException(
+            status_code=409,
+            detail=f"Invalid status transition: {old_status} -> {payload.status}",
+        )
+
+    result = (
+        supabase.table("orders")
+        .update({"status": payload.status})
+        .eq("id", order_id)
+        .eq("status", old_status)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=409, detail="Order changed before it could be updated")
+    return result.data[0]
